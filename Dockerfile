@@ -1,40 +1,32 @@
-FROM python:2.7-slim-stretch
+FROM python:3.12-slim-bookworm
 
-ARG DXL_CLIENT_VERSION=5.6.0.3
+# The OpenDXL Python client. The PyPI release (5.6.0.x) pins msgpack<1.0
+# (vulnerable, GHSA-6v7p-g79w-8964) and does not work on current Python
+# versions; override with a pip requirement specifier once a fixed release
+# is published.
+ARG DXL_CLIENT_PIP_SPEC="git+https://github.com/derjochenmueller/opendxl-client-python@epo-legacy"
 ARG DXL_BOOTSTRAP_VERSION=0.2.2
-ARG WS_VERSION=6.1.4
-ARG SOCKET_IO_VERSION=2.2.0
-ARG CLOUDCMD_VERSION=^9.0.0
-ARG GRITTY_VERSION=^3.0.0
-ARG NODE_SETUP=setup_6.x
+ARG CLOUDCMD_VERSION=^19.0.0
+ARG GRITTY_VERSION=^10.0.0
+ARG NODE_SETUP=setup_22.x
 
 VOLUME ["/opendxl"]
 
 RUN apt-get update \
-    && apt-get install -y curl git unzip wget telnet vim python3 gnupg iproute2 \
-    && curl -sL https://deb.nodesource.com/${NODE_SETUP} | /bin/bash - \
-    && mkdir -p /usr/share/man/man1 \
-    && apt-get install -y nodejs build-essential openjdk-8-jdk-headless \
-    && npm i socket.io@${SOCKET_IO_VERSION} -g \
-    && npm i ws@${WS_VERSION} -g \
-    && npm i cloudcmd@${CLOUDCMD_VERSION} socket.io@${SOCKET_IO_VERSION} -g \
-    && npm i gritty@${GRITTY_VERSION} socket.io@${SOCKET_IO_VERSION} \
-    && npm install -g bootprint \
-    && npm install -g bootprint-opendxl \
+    && apt-get install -y --no-install-recommends curl git unzip wget telnet vim gnupg iproute2 ca-certificates \
+        openjdk-17-jdk-headless build-essential \
+    && curl -fsSL https://deb.nodesource.com/${NODE_SETUP} | /bin/bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g cloudcmd@${CLOUDCMD_VERSION} gritty@${GRITTY_VERSION} bootprint bootprint-opendxl \
+    && npm cache clean --force \
     && apt-get remove -y --auto-remove build-essential \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /root/dxlschema/v0.1 \
     && cd /root/dxlschema/v0.1 \
     && wget https://opendxl.github.io/opendxl-api-specification/v0.1/schema.json
-    
-RUN wget -O get-pip.py 'https://bootstrap.pypa.io/get-pip.py' && \
-	python3 get-pip.py --disable-pip-version-check --no-cache-dir && \
-    rm -f get-pip.py && \
-    cp -f /usr/local/bin/pip2 /usr/local/bin/pip
-    
-RUN pip3 install sphinx dxlclient==${DXL_CLIENT_VERSION} dxlbootstrap==${DXL_BOOTSTRAP_VERSION} twine jsonschema && \
-    pip install sphinx dxlclient==${DXL_CLIENT_VERSION} dxlbootstrap==${DXL_BOOTSTRAP_VERSION} twine jsonschema
+
+RUN pip install --no-cache-dir sphinx "${DXL_CLIENT_PIP_SPEC}" dxlbootstrap==${DXL_BOOTSTRAP_VERSION} twine jsonschema
 
 COPY files/.bashrc /root
 COPY files/vimrc.local /etc/vim
