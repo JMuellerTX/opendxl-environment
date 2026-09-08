@@ -49,4 +49,22 @@ ENV cloudcmd_terminal_path gritty
 
 EXPOSE 8000
 
+# This image runs as root, unlike the service images in this project, and that
+# is deliberate rather than an oversight. It is a development sandbox: the
+# entrypoint writes the docker host into /etc/hosts, and the whole point of the
+# console is a terminal and a file manager that can install packages and edit
+# files anywhere in the container. A USER here would take away what the image
+# is for.
+#
+# The consequence is worth stating plainly: the console on port 8000 has no
+# authentication, so publishing it as `-p 8000:8000` gives anyone who can reach
+# that port a root shell in the container. Publish it to the loopback interface
+# instead:
+#
+#     docker run -p 127.0.0.1:8000:8000 ...
+#
+# Cloud Commander reads its settings from the environment, so a shared instance
+# can be given credentials without rebuilding:
+#
+#     -e cloudcmd_auth=true -e cloudcmd_username=... -e cloudcmd_password=...
 ENTRYPOINT ["/dxlenvironment/startup.sh"]

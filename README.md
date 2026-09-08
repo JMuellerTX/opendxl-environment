@@ -20,6 +20,28 @@ The OpenDXL Environment Docker image is available at the following location with
 
 [https://hub.docker.com/r/opendxl/opendxl-environment/](https://hub.docker.com/r/opendxl/opendxl-environment/)
 
+## Running it safely
+
+The console provides **file management, file editing and terminal access, with
+no authentication**, and the container runs as root - both by design, because
+this is a development sandbox rather than a service. Together they mean that
+anyone who can reach port 8000 has a root shell inside the container.
+
+Publish it to the loopback interface, not to every interface:
+
+```bash
+docker run -d -p 127.0.0.1:8000:8000 opendxl/opendxl-environment
+```
+
+If it has to be reachable from elsewhere, give Cloud Commander credentials -
+it reads them from the environment, so no rebuild is needed:
+
+```bash
+docker run -d -p 8000:8000 \
+  -e cloudcmd_auth=true -e cloudcmd_username=<user> -e cloudcmd_password=<password> \
+  opendxl/opendxl-environment
+```
+
 ## Documentation
 
 See the [Wiki](https://github.com/opendxl/opendxl-environment/wiki) for installation, configuration, usage instructions, and tutorials for the OpenDXL Environment.
