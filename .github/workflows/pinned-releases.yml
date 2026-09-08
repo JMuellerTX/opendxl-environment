@@ -1,0 +1,103 @@
+name: Pinned releases
+
+# A pinned artifact is reproducible and goes stale. This notices the staleness
+# instead of trading the reproducibility away.
+#
+# It reads every GitHub release asset this repository pins in a Dockerfile,
+# asks each source repository for its latest release, and opens - or updates -
+# a single issue when one of them has moved on. It never changes a pin: a bump
+# is a decision, and it should arrive as a reviewed commit rather than as a
+# different image from the same `docker build`.
+#
+# Why this exists at all: the images that install from a branch instead of a
+# release do update by themselves, and on 2026-09-08 that broke a build - a
+# commit in another repository at 12:04 made the broker image fail at 13:59,
+# without anyone touching the broker. Pinning is the fix; this is what keeps
+# pinning honest.
+#
+# The parser is generic: any `https://github.com/<owner>/<repo>/releases/download/<tag>/...`
+# in a Dockerfile is checked, so this file can be copied into another
+# repository unchanged.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Compare every pinned release against the latest one
+      id: check
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        set -eu
+        : > outdated.md
+        found=0
+
+        # urldecode, because a version like 0.1.4+fork.1 appears as 0.1.4%2Bfork.1
+        decode() { printf '%b' "${1//%/\\x}"; }
+
+        grep -rhoE 'https://github\.com/[^/]+/[^/]+/releases/download/[^/]+/' \
+             --include='Dockerfile*' . | sort -u | while read -r url; do
+          rest="${url#https://github.com/}"
+          owner="${rest%%/*}"; rest="${rest#*/}"
+          repo="${rest%%/*}"; rest="${rest#*/releases/download/}"
+          pinned="$(decode "${rest%%/*}")"
+
+          latest="$(gh api "repos/$owner/$repo/releases/latest" --jq .tag_name 2>/dev/null || true)"
+          if [ -z "$latest" ]; then
+            echo "  $owner/$repo: no release found, skipping"
+            continue
+          fi
+          if [ "$pinned" = "$latest" ]; then
+            echo "  $owner/$repo: $pinned is current"
+          else
+            echo "  $owner/$repo: pinned $pinned, latest $latest"
+            echo "- \`$owner/$repo\`: pinned **$pinned**, latest **$latest** — <https://github.com/$owner/$repo/releases/tag/$latest>" >> outdated.md
+            found=1
+          fi
+        done
+
+        # The loop runs in a subshell, so the file is the state that survives.
+        if [ -s outdated.md ]; then
+          echo "outdated=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "outdated=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Open or update the issue
+      if: steps.check.outputs.outdated == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        set -eu
+        title="A pinned release has moved on"
+        {
+          echo "One or more artifacts this image pins have a newer release:"
+          echo
+          cat outdated.md
+          echo
+          echo "The pins are \`ARG\`s in the Dockerfile, so a bump is a one-line change."
+          echo "They are deliberately pinned rather than resolved at build time: an image"
+          echo "has to build the same way twice, and an artifact that follows a branch does"
+          echo "not. This issue is the reminder, not an automatic update."
+          echo
+          echo "_Raised by \`.github/workflows/pinned-releases.yml\`._"
+        } > body.md
+
+        existing="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number' || true)"
+        if [ -n "$existing" ]; then
+          gh issue edit "$existing" --body-file body.md
+          echo "updated issue #$existing"
+        else
+          gh issue create --title "$title" --body-file body.md
+        fi
