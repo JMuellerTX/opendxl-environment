@@ -4,10 +4,15 @@ name: Pinned releases
 # instead of trading the reproducibility away.
 #
 # It reads every GitHub release asset this repository pins in a Dockerfile,
-# asks each source repository for its latest release, and opens - or updates -
-# a single issue when one of them has moved on. It never changes a pin: a bump
-# is a decision, and it should arrive as a reviewed commit rather than as a
-# different image from the same `docker build`.
+# asks each source repository for its latest release, and reports when one of
+# them has moved on. It never changes a pin: a bump is a decision, and it
+# should arrive as a reviewed commit rather than as a different image from the
+# same `docker build`.
+#
+# The finding always goes to the job summary. It also tries to open - or
+# update - a single issue, which is the better channel; GitHub disables issues
+# on a fork by default, so when that is not available the job fails instead.
+# A finding nobody can see is not a finding.
 #
 # Why this exists at all: the images that install from a branch instead of a
 # release do update by themselves, and on 2026-09-08 that broke a build - a
@@ -74,7 +79,7 @@ jobs:
           echo "outdated=false" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Open or update the issue
+    - name: Report
       if: steps.check.outputs.outdated == 'true'
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -89,10 +94,27 @@ jobs:
           echo "The pins are \`ARG\`s in the Dockerfile, so a bump is a one-line change."
           echo "They are deliberately pinned rather than resolved at build time: an image"
           echo "has to build the same way twice, and an artifact that follows a branch does"
-          echo "not. This issue is the reminder, not an automatic update."
+          echo "not. This is the reminder, not an automatic update."
           echo
           echo "_Raised by \`.github/workflows/pinned-releases.yml\`._"
         } > body.md
+
+        # Always visible, whatever else happens.
+        {
+          echo "## $title"
+          echo
+          cat body.md
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        # An issue is the better channel, but GitHub disables issues on a fork
+        # by default. If there is no channel, be a red build rather than a
+        # quiet success.
+        if ! gh issue list --state open --limit 1 >/dev/null 2>&1; then
+          echo "::warning::Issues are disabled on this repository; reporting through the job summary and failing instead."
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Issues are disabled here, so this job fails to stay visible. Enable issues to get one issue instead of a red build._" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+        fi
 
         existing="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number' || true)"
         if [ -n "$existing" ]; then
