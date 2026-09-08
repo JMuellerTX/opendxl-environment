@@ -49,7 +49,11 @@ jobs:
         found=0
 
         # urldecode, because a version like 0.1.4+fork.1 appears as 0.1.4%2Bfork.1
-        decode() { printf '%b' "${1//%/\\x}"; }
+        # in the URL. Done with python rather than printf '%b': bash does not
+        # decode \xHH there reliably, and the first version of this silently
+        # compared "v0.1.4x2Bfork.1" against the real tag - a weekly red build
+        # for a pin that was in fact current.
+        decode() { python3 -c 'import sys,urllib.parse;print(urllib.parse.unquote(sys.argv[1]))' "$1"; }
 
         grep -rhoE 'https://github\.com/[^/]+/[^/]+/releases/download/[^/]+/' \
              --include='Dockerfile*' . | sort -u | while read -r url; do
