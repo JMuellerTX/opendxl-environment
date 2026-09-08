@@ -5,7 +5,10 @@ FROM python:3.12-slim-bookworm
 # versions; override with a pip requirement specifier once a fixed release
 # is published.
 ARG DXL_CLIENT_PIP_SPEC="git+https://github.com/JMuellerTX/opendxl-client-python@epo-legacy"
-ARG DXL_BOOTSTRAP_VERSION=0.2.2
+# The dxlbootstrap release on PyPI imports pkg_resources, which setuptools 82
+# dropped and a current base image no longer provides, so anything built on it
+# fails at import. The fork uses importlib.resources instead.
+ARG DXL_BOOTSTRAP_PIP_SPEC="git+https://github.com/JMuellerTX/opendxl-bootstrap-python@master"
 ARG CLOUDCMD_VERSION=^19.0.0
 ARG GRITTY_VERSION=^10.0.0
 ARG NODE_SETUP=setup_22.x
@@ -26,7 +29,7 @@ RUN apt-get update \
     && cd /root/dxlschema/v0.1 \
     && wget https://opendxl.github.io/opendxl-api-specification/v0.1/schema.json
 
-RUN pip install --no-cache-dir sphinx "${DXL_CLIENT_PIP_SPEC}" dxlbootstrap==${DXL_BOOTSTRAP_VERSION} twine jsonschema
+RUN pip install --no-cache-dir sphinx "${DXL_CLIENT_PIP_SPEC}" "${DXL_BOOTSTRAP_PIP_SPEC}" twine jsonschema
 
 COPY files/.bashrc /root
 COPY files/vimrc.local /etc/vim
