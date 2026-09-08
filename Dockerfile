@@ -4,7 +4,7 @@ FROM python:3.12-slim-bookworm
 # (vulnerable, GHSA-6v7p-g79w-8964) and does not work on current Python
 # versions; override with a pip requirement specifier once a fixed release
 # is published.
-ARG DXL_CLIENT_PIP_SPEC="git+https://github.com/derjochenmueller/opendxl-client-python@epo-legacy"
+ARG DXL_CLIENT_PIP_SPEC="git+https://github.com/JMuellerTX/opendxl-client-python@epo-legacy"
 ARG DXL_BOOTSTRAP_VERSION=0.2.2
 ARG CLOUDCMD_VERSION=^19.0.0
 ARG GRITTY_VERSION=^10.0.0
