@@ -9,6 +9,11 @@ ARG DXL_CLIENT_PIP_SPEC="git+https://github.com/JMuellerTX/opendxl-client-python
 # dropped and a current base image no longer provides, so anything built on it
 # fails at import. The fork uses importlib.resources instead.
 ARG DXL_BOOTSTRAP_PIP_SPEC="git+https://github.com/JMuellerTX/opendxl-bootstrap-python@master"
+# The bootprint-opendxl release on npmjs.com is the upstream 0.1.4, which
+# depends on bootprint 1.x from 2016 and everything under it. The fork moved
+# to bootprint 4; it is not on npmjs.com, because that name belongs to the
+# upstream project, so it is installed from its release tarball instead.
+ARG BOOTPRINT_OPENDXL_TARBALL="https://github.com/JMuellerTX/bootprint-opendxl/releases/download/v0.1.4%2Bfork.1/bootprint-opendxl-0.1.4%2Bfork.1.tgz"
 ARG CLOUDCMD_VERSION=^19.0.0
 ARG GRITTY_VERSION=^10.0.0
 ARG NODE_SETUP=setup_22.x
@@ -20,7 +25,7 @@ RUN apt-get update \
         openjdk-17-jdk-headless build-essential \
     && curl -fsSL https://deb.nodesource.com/${NODE_SETUP} | /bin/bash - \
     && apt-get install -y --no-install-recommends nodejs \
-    && npm install -g cloudcmd@${CLOUDCMD_VERSION} gritty@${GRITTY_VERSION} bootprint bootprint-opendxl \
+    && npm install -g cloudcmd@${CLOUDCMD_VERSION} gritty@${GRITTY_VERSION} bootprint "${BOOTPRINT_OPENDXL_TARBALL}" \
     && npm cache clean --force \
     && apt-get remove -y --auto-remove build-essential \
     && apt-get clean \
