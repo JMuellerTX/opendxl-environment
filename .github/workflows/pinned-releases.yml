@@ -76,6 +76,34 @@ jobs:
           fi
         done
 
+        # Collective git tags, the other kind of pin in these Dockerfiles. A release
+        # asset has a 'latest release' to compare against; a tag like
+        # fork-2026-09-21 does not, so the question is a different one: has the
+        # branch it was cut from moved on since? Added because the pins introduced
+        # on 2026-09-21 were invisible to the loop above, which only knows release
+        # download URLs - twenty references that nothing watched.
+        grep -rhoE 'github\.com/[^/]+/[^/@"]+@fork-[0-9]{4}-[0-9]{2}-[0-9]{2}[a-z-]*' \
+             --include='Dockerfile*' . | sort -u | while read -r ref; do
+          repo_part="${ref#github.com/}"
+          owner="${repo_part%%/*}"; rest="${repo_part#*/}"
+          repo="${rest%%@*}"; tag="${rest#*@}"
+          # The branch the tag stands for: the -epo-legacy suffix names it, else master.
+          case "$tag" in *-epo-legacy) branch=epo-legacy ;; *) branch=master ;; esac
+          tag_sha="$(gh api "repos/$owner/$repo/git/ref/tags/$tag" --jq .object.sha 2>/dev/null || true)"
+          head_sha="$(gh api "repos/$owner/$repo/commits/$branch" --jq .sha 2>/dev/null || true)"
+          if [ -z "$tag_sha" ] || [ -z "$head_sha" ]; then
+            echo "  $owner/$repo@$tag: cannot resolve, skipping"
+            continue
+          fi
+          behind="$(gh api "repos/$owner/$repo/compare/$tag...$branch" --jq .ahead_by 2>/dev/null || echo 0)"
+          if [ "${behind:-0}" -eq 0 ]; then
+            echo "  $owner/$repo@$tag: current with $branch"
+          else
+            echo "  $owner/$repo@$tag: $branch is $behind commit(s) ahead"
+            echo "- \`$owner/$repo@$tag\`: \`$branch\` is **$behind commit(s)** ahead — <https://github.com/$owner/$repo/compare/$tag...$branch>" >> outdated.md
+          fi
+        done
+
         # The loop runs in a subshell, so the file is the state that survives.
         if [ -s outdated.md ]; then
           echo "outdated=true" >> "$GITHUB_OUTPUT"
@@ -96,6 +124,8 @@ jobs:
           cat outdated.md
           echo
           echo "The pins are \`ARG\`s in the Dockerfile, so a bump is a one-line change."
+          echo "A collective tag entry means the branch moved on, not that the pin is"
+          echo "broken - decide whether this image should carry the newer state."
           echo "They are deliberately pinned rather than resolved at build time: an image"
           echo "has to build the same way twice, and an artifact that follows a branch does"
           echo "not. This is the reminder, not an automatic update."
