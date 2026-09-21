@@ -4,11 +4,11 @@ FROM python:3.12-slim-bookworm
 # (vulnerable, GHSA-6v7p-g79w-8964) and does not work on current Python
 # versions; override with a pip requirement specifier once a fixed release
 # is published.
-ARG DXL_CLIENT_PIP_SPEC="git+https://github.com/JMuellerTX/opendxl-client-python@epo-legacy"
+ARG DXL_CLIENT_PIP_SPEC="git+https://github.com/JMuellerTX/opendxl-client-python@fork-2026-09-21-epo-legacy"
 # The dxlbootstrap release on PyPI imports pkg_resources, which setuptools 82
 # dropped and a current base image no longer provides, so anything built on it
 # fails at import. The fork uses importlib.resources instead.
-ARG DXL_BOOTSTRAP_PIP_SPEC="git+https://github.com/JMuellerTX/opendxl-bootstrap-python@master"
+ARG DXL_BOOTSTRAP_PIP_SPEC="git+https://github.com/JMuellerTX/opendxl-bootstrap-python@fork-2026-09-21"
 # The bootprint-opendxl release on npmjs.com is the upstream 0.1.4, which
 # depends on bootprint 1.x from 2016 and everything under it. The fork moved
 # to bootprint 4; it is not on npmjs.com, because that name belongs to the
